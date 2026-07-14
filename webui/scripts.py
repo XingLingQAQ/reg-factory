@@ -263,6 +263,12 @@ EMBED_PAGES = []
 # group: 分组标题；key: 变量名；required: 是否必填(运行对应功能时)；help: 说明；
 # secret: True 时前端用密码框；default: 模板默认值(仅展示)。
 ENV_SCHEMA = [
+    {"group": "Codex K12 控制台", "tests": [{"target": "k12", "label": "测试 K12 控制台"}], "items": [
+        {"key": "K12_CONSOLE_URL", "default": "http://127.0.0.1:8806",
+         "help": "主 WebUI 内嵌的 Codex K12 地址。本地地址会由主 WebUI 自动管理进程。"},
+        {"key": "K12_AUTO_START", "type": "choice", "choices": ["1", "0"], "default": "1",
+         "help": "启动主 WebUI 时是否自动拉起本地 Codex K12 服务。"},
+    ]},
     {"group": "Clash 代理(节点切换/出口)", "tests": [{"target": "clash", "label": "测试 Clash 连通"}], "items": [
         {"key": "CLASH_SECRET", "required": True, "secret": True,
          "help": "Clash Verge → 设置 → 外部控制器(External Controller) 里设的 secret/密钥。"
@@ -295,8 +301,7 @@ ENV_SCHEMA = [
         {"key": "EZCAPTCHA_API_KEY", "secret": True, "help": "EZ-Captcha 打码 key(解锁 Outlook 用)"},
         {"key": "YESCAPTCHA_API_KEY", "secret": True, "help": "YesCaptcha key(GitHub Arkose 备用)"},
     ]},
-    {"group": "Outlook 邮箱来源", "items": [
-        {"key": "OUTLOOK_CARD", "secret": True, "help": "闪客云邮箱卡密(接口取号用)"},
+    {"group": "Outlook 自注册", "items": [
         {"key": "OUTLOOK_PROXIES", "help": "Outlook 自注册住宅代理池(换行/逗号分隔)"},
     ]},
     {"group": "临时邮箱(Grok 注册取码)", "items": [

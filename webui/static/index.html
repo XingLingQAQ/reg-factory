@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=">
 <title>reg-factory 控制面板</title>
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style.css?v=20260715-k12-2">
 </head>
 <body>
 <header class="topbar">
@@ -12,6 +13,7 @@
   <div class="status" id="status">
     <span class="dot" id="dot-bb"></span><span id="browser-label">BitBrowser</span>
     <span class="dot" id="dot-clash"></span>Clash
+    <span class="dot pending" id="dot-k12"></span>Codex K12
     <span class="node" id="node">节点 --</span>
     <span class="running" id="running"></span>
   </div>
@@ -21,6 +23,7 @@
   <nav class="sidebar">
     <div class="nav-section">
       <button class="navbtn active" data-view="run">▶ 运行任务</button>
+      <button class="navbtn navbtn-k12" data-view="k12">▣ Codex K12 <span id="k12-nav-state" class="nav-state">检测中</span></button>
       <button class="navbtn" data-view="mailpool">📥 邮箱池</button>
       <button class="navbtn" data-view="env">⚙️ 配置 (.env)</button>
     </div>
@@ -68,6 +71,30 @@
       </div>
     </section>
 
+    <!-- Codex K12 集成通道 -->
+    <section id="view-k12" style="display:none">
+      <div class="k12-channel">
+        <div class="k12-channel-bar">
+          <div>
+            <strong>Codex K12</strong>
+            <span id="k12-channel-status" class="k12-channel-status">正在检测服务</span>
+          </div>
+          <div class="k12-channel-actions">
+            <button id="btn-k12-retry" class="btn-k12-secondary" type="button">重新连接</button>
+            <a id="k12-open" href="http://127.0.0.1:8806/" target="_blank" rel="noopener" class="embed-open">↗ 新标签打开</a>
+          </div>
+        </div>
+        <div class="k12-frame-stage">
+          <iframe id="k12-frame" class="k12-frame" src="about:blank" title="Codex K12 控制台"></iframe>
+          <div id="k12-offline" class="k12-offline">
+            <strong>Codex K12 服务未就绪</strong>
+            <span id="k12-offline-detail">正在检查 Node.js、依赖和生产构建。</span>
+            <button id="btn-k12-start" class="btn-run" type="button">启动服务</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- 邮箱池视图 -->
     <section id="view-mailpool" style="display:none">
       <div class="panel">
@@ -102,6 +129,6 @@
   </main>
 </div>
 
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v=20260715-k12-2"></script>
 </body>
 </html>

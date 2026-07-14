@@ -13,6 +13,7 @@ body{margin:0;background:var(--bg);color:var(--text);
 .status{display:flex;align-items:center;gap:8px;color:var(--dim);font-size:13px}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--red);display:inline-block;margin-left:10px}
 .dot.on{background:var(--green)}
+.dot.pending{background:var(--dim)}
 .node{margin-left:14px;color:var(--accent)}
 .running{margin-left:10px;color:var(--green)}
 
@@ -24,6 +25,10 @@ body{margin:0;background:var(--bg);color:var(--text);
   background:transparent;border:none;color:var(--text);border-radius:6px;cursor:pointer;font-size:14px}
 .navbtn:hover{background:var(--panel2)}
 .navbtn.active{background:var(--accent);color:#fff}
+.navbtn-k12{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.nav-state{margin-left:auto;padding:2px 6px;border:1px solid var(--line);border-radius:4px;
+  color:var(--dim);font-size:10px;font-weight:500}
+.nav-state.on{border-color:var(--green);color:var(--green)}
 .cat-title{color:var(--dim);font-size:12px;padding:8px 14px 4px;text-transform:uppercase;letter-spacing:.5px}
 .scriptbtn{display:block;width:100%;text-align:left;padding:8px 14px;background:transparent;
   border:none;color:var(--text);cursor:pointer;font-size:13.5px;border-left:3px solid transparent}
@@ -87,6 +92,23 @@ body{margin:0;background:var(--bg);color:var(--text);
 
 /* ---- 内嵌功能页 + 接码助手 ---- */
 #view-embed{height:100%}
+#view-k12{height:100%}
+.k12-channel{height:100%;display:flex;flex-direction:column;background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.k12-channel-bar{min-height:48px;display:flex;align-items:center;justify-content:space-between;
+  gap:14px;padding:8px 14px;border-bottom:1px solid var(--line)}
+.k12-channel-bar>div{display:flex;align-items:center;gap:10px;min-width:0}
+.k12-channel-status{color:var(--dim);font-size:12px}
+.k12-channel-status.on{color:var(--green)}
+.k12-channel-actions{justify-content:flex-end}
+.btn-k12-secondary{min-height:30px;padding:5px 10px;border:1px solid var(--line);border-radius:6px;
+  color:var(--text);background:var(--panel2);cursor:pointer}
+.k12-frame-stage{position:relative;flex:1;min-height:480px;background:#f4f6f8}
+.k12-frame{display:block;width:100%;height:100%;border:0;background:#f4f6f8}
+.k12-offline{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;padding:24px;color:var(--text);background:var(--panel);text-align:center}
+.k12-offline span{max-width:560px;color:var(--dim);line-height:1.5}
+.k12-offline .btn-run{margin-top:4px}
 .embed-wrap{display:flex;gap:14px;height:100%}
 .embed-frame-box{flex:1;display:flex;flex-direction:column;background:var(--panel);
   border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
@@ -131,3 +153,15 @@ body{margin:0;background:var(--bg);color:var(--text);
 .multi-badge{font-size:11px;padding:1px 7px;border-radius:4px;margin-left:4px}
 .multi-badge.ok{background:rgba(63,191,107,.18);color:var(--green);border:1px solid var(--green)}
 .multi-badge.no{background:rgba(154,163,178,.15);color:var(--dim);border:1px solid var(--line)}
+
+@media (max-width:760px){
+  .topbar{align-items:flex-start;gap:8px;flex-direction:column}
+  .status{max-width:100%;overflow-x:auto;padding-bottom:2px}
+  .layout{height:calc(100vh - 82px)}
+  .sidebar{width:176px}
+  .content{padding:10px}
+  .k12-active .sidebar{display:none}
+  .k12-active .content{width:100%}
+  .k12-channel-bar{align-items:flex-start;flex-direction:column}
+  .k12-channel-actions{width:100%;justify-content:space-between!important}
+}

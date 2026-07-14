@@ -10,9 +10,13 @@ webui/server.py — reg-factory 本地 Web 面板后端(FastAPI)。
 启动：  python -m uvicorn webui.server:app --port 8799   (或用 start.bat)
 """
 import asyncio
+import contextlib
 import os
+import shutil
+import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 
 from fastapi import FastAPI, Request
@@ -24,6 +28,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WEBUI = os.path.join(ROOT, "webui")
 ENV_PATH = os.path.join(ROOT, ".env")
 ENV_EXAMPLE = os.path.join(ROOT, ".env.example")
+K12_DIR = os.path.join(ROOT, "codex_k12")
+K12_SERVER = os.path.join(K12_DIR, "server", "index.ts")
+K12_TSX_CLI = os.path.join(K12_DIR, "node_modules", "tsx", "dist", "cli.mjs")
+K12_DIST_INDEX = os.path.join(K12_DIR, "dist", "index.html")
+K12_LOG_PATH = os.path.join(K12_DIR, "server.log")
 
 sys.path.insert(0, WEBUI)
 sys.path.insert(0, ROOT)
@@ -54,6 +63,12 @@ _run_seq = [0]
 SMS_RENTS = {}
 SMS_RENT_TTL = 1200  # 20 分钟租期(秒)
 
+# 只管理由本 WebUI 拉起的 K12 子进程；外部已启动的服务不会在退出时被误杀。
+K12_PROCESS = None
+K12_LOG_HANDLE = None
+K12_START_TASK = None
+K12_LOCK = asyncio.Lock()
+
 
 # ============================================================ 配置/状态读取
 def _read_config_val(key, default=""):
@@ -82,6 +97,122 @@ def _http_alive(url, timeout=3):
         return True  # 4xx = 服务活着(拒绝裸请求)
     except Exception:
         return False
+
+
+def _k12_url():
+    raw = _read_config_val("K12_CONSOLE_URL", "http://127.0.0.1:8806").strip().rstrip("/")
+    try:
+        parsed = urllib.parse.urlparse(raw)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("invalid K12_CONSOLE_URL")
+    except Exception:
+        return "http://127.0.0.1:8806/"
+    return raw + "/"
+
+
+def _k12_is_local(url):
+    try:
+        return urllib.parse.urlparse(url).hostname in {"127.0.0.1", "localhost", "::1"}
+    except Exception:
+        return False
+
+
+def _k12_alive():
+    return _http_alive(urllib.parse.urljoin(_k12_url(), "api/health"), timeout=1.5)
+
+
+def _k12_status(message=""):
+    alive = _k12_alive()
+    node = shutil.which("node")
+    missing = []
+    if not os.path.isfile(os.path.join(K12_DIR, "package.json")):
+        missing.append("codex_k12 子项目")
+    if not node:
+        missing.append("Node.js 20+")
+    if not os.path.isfile(K12_TSX_CLI):
+        missing.append("Node 依赖")
+    if not os.path.isfile(K12_DIST_INDEX):
+        missing.append("生产构建")
+    ready = not missing and _k12_is_local(_k12_url())
+    managed = bool(K12_PROCESS and K12_PROCESS.returncode is None)
+    if alive:
+        detail = "服务在线"
+    elif message:
+        detail = message
+    elif missing:
+        detail = "缺少 " + "、".join(missing) + "，请重新运行 install.bat / install.sh"
+    elif not _k12_is_local(_k12_url()):
+        detail = "远程 K12 地址当前不可达，主面板不会自动启动远程服务"
+    else:
+        detail = "服务已安装但尚未启动"
+    return {"alive": alive, "ready": ready, "managed": managed, "url": _k12_url(), "message": detail}
+
+
+async def _start_k12_service():
+    global K12_PROCESS, K12_LOG_HANDLE
+    async with K12_LOCK:
+        status = _k12_status()
+        if status["alive"] or not status["ready"]:
+            return status
+        if K12_PROCESS and K12_PROCESS.returncode is None:
+            return _k12_status("服务进程正在启动")
+
+        if K12_LOG_HANDLE:
+            K12_LOG_HANDLE.close()
+            K12_LOG_HANDLE = None
+
+        parsed = urllib.parse.urlparse(status["url"])
+        child_env = os.environ.copy()
+        child_env["HOST"] = "127.0.0.1"
+        child_env["PORT"] = str(parsed.port or (443 if parsed.scheme == "https" else 80))
+        node = shutil.which("node")
+        os.makedirs(K12_DIR, exist_ok=True)
+        K12_LOG_HANDLE = open(K12_LOG_PATH, "a", encoding="utf-8")
+        try:
+            K12_PROCESS = await asyncio.create_subprocess_exec(
+                node, K12_TSX_CLI, K12_SERVER,
+                cwd=K12_DIR,
+                env=child_env,
+                stdout=K12_LOG_HANDLE,
+                stderr=asyncio.subprocess.STDOUT,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+        except Exception as exc:
+            K12_LOG_HANDLE.close()
+            K12_LOG_HANDLE = None
+            K12_PROCESS = None
+            return _k12_status(f"启动失败：{str(exc)[:120]}")
+
+        for _ in range(48):
+            await asyncio.sleep(0.25)
+            if _k12_alive():
+                return _k12_status()
+            if K12_PROCESS.returncode is not None:
+                break
+        code = K12_PROCESS.returncode
+        if code is not None and K12_LOG_HANDLE:
+            K12_LOG_HANDLE.close()
+            K12_LOG_HANDLE = None
+        return _k12_status(f"服务未能就绪" + (f"（退出码 {code}）" if code is not None else "，请查看 codex_k12/server.log"))
+
+
+async def _stop_k12_service():
+    global K12_PROCESS, K12_LOG_HANDLE
+    proc = K12_PROCESS
+    K12_PROCESS = None
+    if proc and proc.returncode is None:
+        with contextlib.suppress(ProcessLookupError):
+            proc.terminate()
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            with contextlib.suppress(Exception):
+                await proc.wait()
+    if K12_LOG_HANDLE:
+        K12_LOG_HANDLE.close()
+        K12_LOG_HANDLE = None
 
 
 # ============================================================ .env 读写(保留注释/顺序)
@@ -255,7 +386,13 @@ def _test_firefox():
         return False, f"firefox.fun 请求失败：{str(e)[:80]}"
 
 
+def _test_k12():
+    status = _k12_status()
+    return status["alive"], status["message"] + f"（{status['url']}）"
+
+
 _TESTERS = {
+    "k12": _test_k12,
     "clash": _test_clash,
     "bitbrowser": _test_bitbrowser,
     "smsman": _test_smsman,
@@ -306,6 +443,16 @@ def api_links():
 @app.get("/api/embeds")
 def api_embeds():
     return {"embeds": getattr(schema, "EMBED_PAGES", [])}
+
+
+@app.get("/api/k12/status")
+def api_k12_status():
+    return _k12_status()
+
+
+@app.post("/api/k12/start")
+async def api_k12_start():
+    return await _start_k12_service()
 
 
 # ============================================================ 邮箱池批量导入
@@ -511,6 +658,7 @@ def api_status():
         "bitbrowser": _http_alive(bb),
         "browser_provider": provider_label,
         "clash": _http_alive(clash),
+        "k12": _k12_alive(),
         "node": node,
         "running": sum(1 for r in RUNS.values() if not r["done"]),
     }
@@ -666,6 +814,25 @@ async def api_stop(run_id: str):
         except Exception:
             pass
     return {"ok": True}
+
+
+@app.on_event("startup")
+async def startup_k12_channel():
+    global K12_START_TASK
+    auto_start = _read_config_val("K12_AUTO_START", "1").strip().lower() not in {"0", "false", "no", "off"}
+    if auto_start and not _k12_alive():
+        K12_START_TASK = asyncio.create_task(_start_k12_service())
+
+
+@app.on_event("shutdown")
+async def shutdown_k12_channel():
+    global K12_START_TASK
+    if K12_START_TASK and not K12_START_TASK.done():
+        K12_START_TASK.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await K12_START_TASK
+    K12_START_TASK = None
+    await _stop_k12_service()
 
 
 _ensure_proxy_env()

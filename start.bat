@@ -9,6 +9,7 @@ if not exist ".venv\Scripts\python.exe" (
 
 echo Starting reg-factory control panel ...
 echo Panel: http://127.0.0.1:8799  (browser opens automatically)
+echo Codex K12: managed by the panel at http://127.0.0.1:8806
 echo Close this window to stop the server.
 echo.
 

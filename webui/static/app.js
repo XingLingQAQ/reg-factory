@@ -5,6 +5,8 @@ let curRun = null;     // 当前运行 run_id
 let curSrc = null;     // 当前选中脚本
 let evtSrc = null;     // EventSource
 let smsTimer = null;   // 接码助手倒计时刷新
+let k12Url = 'http://127.0.0.1:8806/';
+let k12Starting = false;
 
 const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
@@ -17,6 +19,10 @@ async function pollStatus(){
     const label = s.browser_provider === 'adspower' ? 'AdsPower' : 'BitBrowser';
     $('#browser-label').textContent = label;
     $('#dot-clash').classList.toggle('on', s.clash);
+    $('#dot-k12').classList.remove('pending');
+    $('#dot-k12').classList.toggle('on', !!s.k12);
+    $('#k12-nav-state').textContent = s.k12 ? '在线' : '离线';
+    $('#k12-nav-state').classList.toggle('on', !!s.k12);
     $('#node').textContent = '节点 ' + (s.node || '--');
     $('#running').textContent = s.running ? `● ${s.running} 个任务运行中` : '';
   }catch(e){}
@@ -25,15 +31,71 @@ setInterval(pollStatus, 5000);
 
 // ---------------------------------------------------------------- 视图切换
 function showView(v){
+  document.body.classList.toggle('k12-active', v==='k12');
   $('#view-run').style.display  = v==='run' ? 'flex' : 'none';
   $('#view-env').style.display  = v==='env' ? 'block' : 'none';
   $('#view-embed').style.display = v==='embed' ? 'block' : 'none';
   $('#view-mailpool').style.display = v==='mailpool' ? 'block' : 'none';
+  $('#view-k12').style.display = v==='k12' ? 'block' : 'none';
   $$('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
   if(v==='env') loadEnv();
   if(v==='mailpool') loadMailpool();
+  if(v==='k12') openK12Channel();
 }
 $$('.navbtn').forEach(b=> b.onclick = ()=> showView(b.dataset.view));
+
+// ---------------------------------------------------------------- Codex K12 集成通道
+function renderK12Status(status){
+  const alive = !!status.alive;
+  k12Url = status.url || k12Url;
+  $('#k12-open').href = k12Url;
+  $('#dot-k12').classList.toggle('on', alive);
+  $('#k12-nav-state').textContent = alive ? '在线' : (status.ready ? '可启动' : '未安装');
+  $('#k12-nav-state').classList.toggle('on', alive);
+  $('#k12-channel-status').textContent = alive ? '服务在线' : (status.message || '服务离线');
+  $('#k12-channel-status').classList.toggle('on', alive);
+  $('#k12-offline').style.display = alive ? 'none' : 'flex';
+  $('#k12-offline-detail').textContent = status.message || 'Codex K12 服务未启动';
+  $('#btn-k12-start').disabled = k12Starting || !status.ready;
+  $('#btn-k12-start').textContent = k12Starting ? '启动中…' : '启动服务';
+  if(alive && $('#k12-frame').src !== k12Url){
+    $('#k12-frame').src = k12Url;
+  }
+}
+
+async function fetchK12Status(){
+  try{
+    const status = await (await fetch('/api/k12/status')).json();
+    renderK12Status(status);
+    return status;
+  }catch(e){
+    const status = {alive:false, ready:false, url:k12Url, message:'主面板无法读取 K12 服务状态'};
+    renderK12Status(status);
+    return status;
+  }
+}
+
+async function startK12Service(){
+  if(k12Starting) return;
+  k12Starting = true;
+  renderK12Status({alive:false, ready:true, url:k12Url, message:'正在启动 Codex K12 服务'});
+  try{
+    const result = await (await fetch('/api/k12/start',{method:'POST'})).json();
+    renderK12Status(result);
+  }catch(e){
+    renderK12Status({alive:false, ready:false, url:k12Url, message:'启动请求失败: '+e});
+  }finally{
+    k12Starting = false;
+  }
+}
+
+async function openK12Channel(){
+  const status = await fetchK12Status();
+  if(!status.alive && status.ready) await startK12Service();
+}
+
+$('#btn-k12-start').onclick = startK12Service;
+$('#btn-k12-retry').onclick = openK12Channel;
 
 // ---------------------------------------------------------------- 脚本导航
 async function loadScripts(){

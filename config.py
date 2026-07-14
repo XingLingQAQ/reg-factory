@@ -68,11 +68,6 @@ MAIL_AUTH_TOKEN = _env("MAIL_AUTH_TOKEN", "")
 # 新建邮箱统一密码
 MAIL_NEW_PASS = _env("MAIL_NEW_PASS", "")
 
-# ---------------------------------------------------------------- Outlook 邮箱 API (闪客云邮箱)
-OUTLOOK_API_BASE = _env("OUTLOOK_API_BASE", "http://api.shankeyun.com")
-OUTLOOK_CARD = _env("OUTLOOK_CARD", "")  # 闪客云卡密
-OUTLOOK_TYPE = _env("OUTLOOK_TYPE", "outlook")  # outlook / hotmail / any
-
 # ---------------------------------------------------------------- 临时邮箱（纯 HTTP API 取码，Grok 注册用）
 # 参考 grokcli-2api：用临时邮箱 HTTP API 直接拉验证码，免去 Outlook 浏览器登录/轮询的重开销。
 # GROK_USE_TEMP_EMAIL=true 时 register_grok.py 走临时邮箱；创建失败自动回退 emails.txt Outlook。

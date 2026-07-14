@@ -1,0 +1,11 @@
+Reg Factory Codex K12
+
+This project is derived from GPT K12 Console:
+https://github.com/lxh77721/k12-reg
+
+Reference revision:
+3daaddb66e316b90c4f18dc27e8244e59f93a78d
+
+The upstream MIT license is preserved in LICENSE. Reg Factory-specific
+integration, branding, security defaults, UI changes, and verification scripts
+were added for this repository.

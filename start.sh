@@ -9,6 +9,7 @@ fi
 
 echo "启动 reg-factory 控制面板 ..."
 echo "面板地址: http://127.0.0.1:8799"
+echo "Codex K12: 由主面板自动管理,内嵌入口位于左侧导航"
 echo "Ctrl+C 停止服务。"
 
 # 后台等 2 秒打开浏览器(mac=open / linux=xdg-open)

@@ -85,6 +85,16 @@
 
 ## 0. 图形界面 / 一键安装（推荐新手）
 
+### Codex K12 独立控制台
+
+仓库现已包含 `codex_k12/` 子项目，用于管理授权 K12 workspace、Codex 凭据、邮箱池、Sub2API 入库和任务队列。主 WebUI 左侧提供 **Codex K12** 内嵌通道，并负责本地 K12 服务的启动与回收；K12 运行数据仍独立保存在 `codex_k12/data/`。
+
+```powershell
+start.bat
+```
+
+主面板地址为 `http://127.0.0.1:8799/`，K12 也可在 `http://127.0.0.1:8806/` 单独打开；`start_k12.bat` 可用于独立启动。详细配置和开发命令见 [`codex_k12/README.md`](codex_k12/README.md)。新安装不包含默认 workspace ID、代理或通用密码，请只填写你拥有或已获授权的资源。
+
 不想敲命令行？用自带的 **Web 控制面板** + **一键安装脚本**：
 
 **Windows**
@@ -153,7 +163,6 @@ cp .env.example .env
 | `HERO_SMS_API_KEY` | 备用接码 hero-sms.com 的 api_key | 否 |
 | `CAPSOLVER_API_KEY` | CapSolver 打码 key（Grok 注册过 Turnstile 用它） | Grok 必填 |
 | `EZCAPTCHA_API_KEY` | EZ-Captcha 打码 key | 按需 |
-| `OUTLOOK_CARD` | 闪客云邮箱卡密（接口批量取号用） | 用接口取号时填 |
 | `OUTLOOK_PROXIES` | Outlook 自注册住宅代理池，`user:pass@host:port`，换行/逗号分隔 | 否 |
 | `MAIL_*` | 备用域名邮箱（一般用不到） | 否 |
 

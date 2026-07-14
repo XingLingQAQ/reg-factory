@@ -37,9 +37,6 @@ except Exception:
 from config import (
     CLAUDE_LOGIN_URL,
     COOKIE_OUTPUT_DIR,
-    OUTLOOK_API_BASE,
-    OUTLOOK_CARD,
-    OUTLOOK_TYPE,
     SMS_API_BASE,
     SMS_COUNTRY_BLACKLIST,
     SMS_COUNTRY_PREFER,
@@ -1545,38 +1542,6 @@ async def register_replit(context, email, email_password, email_token="", tag=""
             await page.close()
         except Exception:
             pass
-
-
-def buy_outlook_email(max_retries=60, retry_interval=10):
-    """Buy outlook email from API, retry if out of stock"""
-    for attempt in range(max_retries):
-        try:
-            url = f"{OUTLOOK_API_BASE}/api/buy"
-            params = {"card": OUTLOOK_CARD, "type": OUTLOOK_TYPE, "num": 1}
-            resp = requests.get(url, params=params, timeout=30)
-            text = resp.text.strip()
-
-            # 检查库存不足
-            if "库存不足" in text or '"status":0' in text:
-                print(f"  [outlook] out of stock, retry {attempt+1}/{max_retries}")
-                time.sleep(retry_interval)
-                continue
-
-            # 解析返回：account----password----token----ClientID
-            parts = text.split("----")
-            if len(parts) >= 2:
-                email = parts[0].strip()
-                password = parts[1].strip()
-                print(f"  [outlook] got: {email}")
-                return email, password
-            else:
-                print(f"  [outlook] unexpected format: {text[:100]}")
-                time.sleep(retry_interval)
-        except Exception as e:
-            print(f"  [outlook] error: {e}")
-            time.sleep(retry_interval)
-
-    raise Exception("buy outlook email failed: max retries reached")
 
 
 def get_magic_link_by_token(email, refresh_token, client_id="9e5f94bc-e8a4-4e73-b8be-63364c29d753", max_wait=90):
