@@ -108,6 +108,9 @@ SCRIPTS = [
         "args": [
             {"flag": "--count", "type": "int", "default": 1, "help": "注册数量"},
             {"flag": "--node", "type": "str", "default": "auto", "help": "Clash 出口节点(过 grok CF，如 '美国 01'，留 auto 自动探测)"},
+            {"flag": "--provider", "type": "choice",
+             "choices": ["", "yyds", "gptmail", "cfmail", "moemail", "custom"], "default": "",
+             "help": "临时邮箱来源(留空=用 .env 的 TEMP_EMAIL_PROVIDER；需在「配置」页填好对应 key)"},
         ],
     },
     {
@@ -295,6 +298,18 @@ ENV_SCHEMA = [
     {"group": "Outlook 邮箱来源", "items": [
         {"key": "OUTLOOK_CARD", "secret": True, "help": "闪客云邮箱卡密(接口取号用)"},
         {"key": "OUTLOOK_PROXIES", "help": "Outlook 自注册住宅代理池(换行/逗号分隔)"},
+    ]},
+    {"group": "临时邮箱(Grok 注册取码)", "items": [
+        {"key": "TEMP_EMAIL_PROVIDER", "type": "choice",
+         "choices": ["yyds", "gptmail", "moemail", "cfmail", "custom"], "default": "yyds",
+         "help": "Grok 注册默认用的临时邮箱 provider(需配好对应 key)。也可在「Grok 注册」表单里临时指定。"},
+        {"key": "YYDS_API_KEY", "secret": True, "help": "YYDS Mail key(profile 页,AC- 开头)"},
+        {"key": "YYDS_BASE_URL", "default": "https://maliapi.215.im", "help": "YYDS Mail 接口地址"},
+        {"key": "GPTMAIL_API_KEY", "secret": True, "help": "GPTMail key(mail.chatgpt.org.uk)"},
+        {"key": "MOEMAIL_API_KEY", "secret": True, "help": "MoeMail key(自部署)"},
+        {"key": "MOEMAIL_BASE_URL", "help": "MoeMail 自部署地址"},
+        {"key": "CFMAIL_ADMIN_PASSWORD", "secret": True, "help": "Cloudflare Temp Email admin 密码(自部署)"},
+        {"key": "CFMAIL_BASE_URL", "help": "Cloudflare Temp Email 地址"},
     ]},
     {"group": "SUB2API(Codex 导入)", "items": [
         {"key": "SUB2API_URL", "help": "SUB2API 管理接口地址(用 --codex 时必填)"},

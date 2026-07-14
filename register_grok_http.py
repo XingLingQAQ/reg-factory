@@ -54,6 +54,9 @@ try:
 except Exception:
     TEMP_EMAIL_PROVIDER = "yyds"
 
+# 运行时生效的临时邮箱 provider：默认取 .env 的 TEMP_EMAIL_PROVIDER，可被 --provider 覆盖。
+PROVIDER = TEMP_EMAIL_PROVIDER
+
 PLATFORM = "grok"
 CLASH_PROXY = os.environ.get("CLASH_PROXY", "http://127.0.0.1:7897")
 SIGNUP_URL = "https://accounts.x.ai/sign-up?redirect=grok-com"
@@ -187,7 +190,7 @@ def register_one(index, total):
         sitekey = c.turnstile_sitekey or C.TURNSTILE_SITEKEY
 
         # 2. 临时邮箱 + 发码
-        mb = create_mailbox_retry(TEMP_EMAIL_PROVIDER)
+        mb = create_mailbox_retry(PROVIDER)
         email = mb["email"]
         password = _rand_password()
         print(f"  [3] temp mailbox: {email} ({mb['provider']})")
@@ -284,7 +287,14 @@ def main():
     parser = argparse.ArgumentParser(description="Grok Auto Register (HTTP protocol / xconsole_client)")
     parser.add_argument("--count", "-n", type=int, default=1)
     parser.add_argument("--node", default="auto", help="Clash 出口节点(过 grok CF)")
+    parser.add_argument("--provider", default="", help="临时邮箱 provider(留空用 .env 的 TEMP_EMAIL_PROVIDER；"
+                                                       "支持逗号分隔故障转移，如 yyds,gptmail)")
     args = parser.parse_args()
+
+    global PROVIDER
+    if args.provider.strip():
+        PROVIDER = args.provider.strip()
+    print(f"  临时邮箱 provider: {PROVIDER}")
 
     print("=" * 50)
     print(f"  Grok Auto Register (HTTP)  count={args.count} node={args.node}")
