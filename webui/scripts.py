@@ -145,6 +145,8 @@ SCRIPTS = [
              "help": "注册成功后直接导入 SUB2API Grok 渠道"},
             {"flag": "--sub2api-group", "type": "str", "default": "",
              "help": "目标 Grok 分组名，留空使用 SUB2API_GROK_GROUP"},
+            {"flag": "--mailbox-attempts", "type": "int", "default": 6,
+             "help": "发码未进入验证码页时自动更换临时邮箱的次数"},
             {"flag": "--keep-on-fail", "type": "bool", "default": False,
              "help": "失败时保留测试窗口"},
         ],
@@ -322,6 +324,8 @@ ENV_SCHEMA = [
         {"key": "FINGERPRINT_BROWSER", "type": "choice", "choices": ["bitbrowser", "adspower"],
          "default": "bitbrowser", "help": "选择当前指纹浏览器"},
         {"key": "BITBROWSER_API", "default": "http://127.0.0.1:54345", "help": "比特浏览器本地 API"},
+        {"key": "GROK_BROWSER_CORE_VERSION", "default": "146",
+         "help": "Grok 浏览器使用的 BitBrowser Chromium 内核；旧 130 会触发 xAI 发码 403"},
         {"key": "ADSPOWER_API", "default": "http://127.0.0.1:50325", "help": "AdsPower 本地 API"},
         {"key": "ADSPOWER_API_KEY", "secret": True, "help": "AdsPower API key，未启用鉴权时留空"},
         {"key": "ADSPOWER_GROUP_ID", "default": "0", "help": "AdsPower 新建 profile 的分组 ID"},
@@ -337,7 +341,7 @@ ENV_SCHEMA = [
     {"group": "打码平台(可选)", "items": [
         {"key": "CAPSOLVER_API_KEY", "secret": True, "help": "CapSolver 打码 key"},
         {"key": "EZCAPTCHA_API_KEY", "secret": True, "help": "EZ-Captcha 打码 key(解锁 Outlook 用)"},
-        {"key": "YESCAPTCHA_API_KEY", "secret": True, "help": "YesCaptcha key(GitHub Arkose 备用)"},
+        {"key": "YESCAPTCHA_API_KEY", "secret": True, "help": "YesCaptcha key(Grok Turnstile / GitHub Arkose)"},
     ]},
     {"group": "Outlook 自注册", "items": [
         {"key": "OUTLOOK_PROXIES", "help": "Outlook 自注册住宅代理池(换行/逗号分隔)"},

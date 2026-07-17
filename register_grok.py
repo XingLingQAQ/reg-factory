@@ -40,11 +40,19 @@ from common import proxy_switch
 
 # 打码平台 key（解 Cloudflare Turnstile）。config 顶部会加载 .env，真实环境变量优先。
 try:
-    from config import CAPSOLVER_API_KEY, EZCAPTCHA_API_KEY, EZCAPTCHA_API_BASE
+    from config import (
+        CAPSOLVER_API_KEY,
+        EZCAPTCHA_API_KEY,
+        EZCAPTCHA_API_BASE,
+        YESCAPTCHA_API_KEY,
+        YESCAPTCHA_API_BASE,
+    )
 except Exception:
     CAPSOLVER_API_KEY = ""
     EZCAPTCHA_API_KEY = ""
     EZCAPTCHA_API_BASE = "https://api.ez-captcha.com"
+    YESCAPTCHA_API_KEY = ""
+    YESCAPTCHA_API_BASE = "https://api.yescaptcha.com"
 
 # 临时邮箱开关/默认 provider（GROK_USE_TEMP_EMAIL=true 时走 HTTP API 取码，免 Outlook 浏览器）
 try:
@@ -72,6 +80,9 @@ GROK_URL = "https://grok.com/"
 GROK_SIGNUP_URL = "https://accounts.x.ai/sign-up?redirect=grok-com&return_to=%2F"
 CLASH_PROXY_HOST = "127.0.0.1"
 CLASH_PROXY_PORT = "7897"
+GROK_BROWSER_CORE_VERSION = os.environ.get(
+    "GROK_BROWSER_CORE_VERSION", os.environ.get("BB_CORE_VERSION", "146")
+)
 # 登录态关键 cookie（运行时确认，先放候选）
 KEY_COOKIES = ["sso", "sso-rw", "__Secure-next-auth.session-token", "auth_token"]
 REGISTER_TIMEOUT = 600
@@ -83,6 +94,7 @@ FIXED_CLIENT_ID = None
 USE_LATEST_RT = False
 IMPORT_SUB2API = False
 IMPORT_SUB2API_GROUP = ""
+BROWSER_MAILBOX_ATTEMPTS = 6
 
 # 注册方式按钮（中文+日文+英文，不同节点地区界面语言不同）
 SIGNUP_BTN = ["新規登録", "注册", "註冊", "Sign up", "サインアップ", "注册账号"]
@@ -99,6 +111,9 @@ COMPLETE_BTN = ["登録を完了", "アカウントを作成", "Complete registr
 
 GROK_SENDER = ("x.ai", "grok", "noreply", "no-reply")
 GROK_SUBJECT = ("code", "verify", "verification", "grok", "x.ai", "confirm", "確認", "認証", "コード", "验证", "驗證")
+GROK_CODE_REGEX = (
+    r"\b((?=[A-Z0-9-]*[A-Z])(?:[A-Z0-9]{2,4}-[A-Z0-9]{2,4}|[A-Z0-9]{6}))\b"
+)
 
 
 # 在 turnstile 脚本加载前 hook window.turnstile.render，截获 React 传入的 callback + sitekey。
@@ -195,6 +210,30 @@ async def inject_grok_stealth(context, page):
     print("  xAI-compatible stealth injected")
 
 
+def grok_browser_fingerprint():
+    """Use the installed modern BitBrowser core and its native fingerprint."""
+    return {
+        "ostype": "PC",
+        "os": "Win32",
+        "coreVersion": GROK_BROWSER_CORE_VERSION,
+        "isIpCreateTimeZone": True,
+        "isIpCreateLanguage": True,
+        "isIpCreateDisplayLanguage": True,
+        "isIpCreatePosition": True,
+        "isIpCountry": True,
+    }
+
+
+async def arm_turnstile_hook(context, page):
+    """Arm Turnstile capture only after email RPCs have completed."""
+    try:
+        await context.add_init_script(TURNSTILE_HOOK_JS)
+        await page.evaluate(TURNSTILE_HOOK_JS)
+        print("  Turnstile hook armed for account-details step")
+    except Exception as e:
+        print(f"  turnstile hook inject failed: {str(e)[:60]}")
+
+
 async def _turnstile_token(page):
     """读当前 cf-turnstile-response 的值(有值=已过)。"""
     try:
@@ -279,6 +318,33 @@ def _solve_turnstile_capsolver(sitekey, page_url, action=None, cdata=None, max_w
         return None
 
 
+def _solve_turnstile_yescaptcha(sitekey, page_url, max_wait=150):
+    """Solve xAI Turnstile through the shared YesCaptcha client."""
+    if not YESCAPTCHA_API_KEY:
+        return None
+    try:
+        from xconsole_client.solver import YesCaptchaSolver
+
+        solver = YesCaptchaSolver(
+            YESCAPTCHA_API_KEY,
+            endpoint=YESCAPTCHA_API_BASE,
+            timeout=max_wait,
+            poll_interval=3,
+            debug=False,
+        )
+        token = solver.solve_turnstile(
+            website_url=page_url,
+            website_key=sitekey,
+            premium=True,
+            fallback_non_premium=True,
+        )
+        print(f"  [yescaptcha] solved (token len={len(token or '')})")
+        return token
+    except Exception as e:
+        print(f"  [yescaptcha] error: {str(e)[:120]}")
+        return None
+
+
 def _solve_turnstile_ezcaptcha(sitekey, page_url, max_wait=130):
     """EZ-Captcha 解 Turnstile(备用),返回 token 或 None。"""
     if not EZCAPTCHA_API_KEY:
@@ -345,8 +411,8 @@ async def ensure_turnstile(page, page_url, passive_s=18):
     if await _wait_turnstile(page, max_s=passive_s):
         return True
     # 2) 打码兜底
-    if not (CAPSOLVER_API_KEY or EZCAPTCHA_API_KEY):
-        print("  [turnstile] 无打码 key(CAPSOLVER_API_KEY/EZCAPTCHA_API_KEY),跳过自动解码")
+    if not (YESCAPTCHA_API_KEY or CAPSOLVER_API_KEY or EZCAPTCHA_API_KEY):
+        print("  [turnstile] 无打码 key(YESCAPTCHA/CAPSOLVER/EZCAPTCHA),跳过自动解码")
         return False
     sitekey = await _extract_sitekey(page)
     if not sitekey:
@@ -356,7 +422,13 @@ async def ensure_turnstile(page, page_url, passive_s=18):
     cdata = await page.evaluate("() => window.__cfCdata || null")
     print(f"  [turnstile] solving via captcha service (sitekey={sitekey[:18]}...)")
     loop = asyncio.get_event_loop()
-    token = await loop.run_in_executor(None, _solve_turnstile_capsolver, sitekey, page_url, action, cdata)
+    token = await loop.run_in_executor(
+        None, _solve_turnstile_yescaptcha, sitekey, page_url
+    )
+    if not token:
+        token = await loop.run_in_executor(
+            None, _solve_turnstile_capsolver, sitekey, page_url, action, cdata
+        )
     if not token:
         token = await loop.run_in_executor(None, _solve_turnstile_ezcaptcha, sitekey, page_url)
     if not token:
@@ -406,7 +478,7 @@ def register_via_protocol_rt(email, refresh_token, client_id, password, attempts
                 client_id,
                 GROK_SENDER,
                 GROK_SUBJECT,
-                r"\b((?=[A-Z0-9-]*[A-Z])[A-Z0-9]{2,4}-[A-Z0-9]{2,4})\b",
+                GROK_CODE_REGEX,
                 90,
                 5,
                 sent_at,
@@ -457,7 +529,7 @@ def register_via_protocol_rt(email, refresh_token, client_id, password, attempts
     return None
 
 
-def save_and_import_grok(sso, email, password):
+def save_and_import_grok(sso, email, password, mark_pool=True):
     from common.session_export import save_grok_token
 
     save_grok_token(sso, email)
@@ -482,7 +554,8 @@ def save_and_import_grok(sso, email, password):
             print("  [hint] SSO 已保存，可修复配置后运行: python upload_tokens.py grok")
             return False
         mark_uploaded("grok", "sub2api", email)
-    email_pool.mark_used(PLATFORM, email, password)
+    if mark_pool:
+        email_pool.mark_used(PLATFORM, email, password)
     return True
 
 
@@ -685,12 +758,16 @@ async def prelogin_via_direct_browser(email, email_pw, p):
     bb = BitBrowser()
     pid = None
     try:
-        pid = create_browser_with_retry(bb, f"mail_{time.strftime('%H%M%S')}")
+        pid = create_browser_with_retry(
+            bb,
+            f"mail_{time.strftime('%H%M%S')}",
+            browserFingerPrint=grok_browser_fingerprint(),
+        )
         if not pid:
             return None, None, None
         bb._post("/browser/update", {
             "id": pid, "proxyMethod": 2, "proxyType": "noproxy",
-            "browserFingerPrint": {"coreVersion": "130"},
+            "browserFingerPrint": grok_browser_fingerprint(),
         })
         data = None
         for _ in range(8):
@@ -734,7 +811,7 @@ async def get_code_via_direct_browser(email, email_pw, p, pre=None):
         from common.mailbox import fetch_from_broker
         return await fetch_from_broker(
             email, email_pw, GROK_SENDER, GROK_SUBJECT,
-            r"\b((?=[A-Z0-9-]*[A-Z])[A-Z0-9]{2,4}-[A-Z0-9]{2,4})\b", "code",
+            GROK_CODE_REGEX, "code",
             int(os.environ.get("GROK_BROKER_TIMEOUT", "40")),
         )
     # 复用预登录窗口：已在收件箱，skip_login 直接轮询
@@ -744,7 +821,7 @@ async def get_code_via_direct_browser(email, email_pw, p, pre=None):
             return await get_code_outlook_pw(
                 page, email, email_pw,
                 sender_hint=GROK_SENDER, subject_hint=GROK_SUBJECT,
-                code_regex=r"\b((?=[A-Z0-9-]*[A-Z])[A-Z0-9]{2,4}-[A-Z0-9]{2,4})\b",
+                code_regex=GROK_CODE_REGEX,
                 max_wait=160, poll=8, skip_login=True,
             )
         except Exception as e:
@@ -764,12 +841,16 @@ async def get_code_via_direct_browser(email, email_pw, p, pre=None):
     bb = BitBrowser()
     pid = None
     try:
-        pid = create_browser_with_retry(bb, f"mail_{time.strftime('%H%M%S')}")
+        pid = create_browser_with_retry(
+            bb,
+            f"mail_{time.strftime('%H%M%S')}",
+            browserFingerPrint=grok_browser_fingerprint(),
+        )
         if not pid:
             return None
         bb._post("/browser/update", {
             "id": pid, "proxyMethod": 2, "proxyType": "noproxy",
-            "browserFingerPrint": {"coreVersion": "130"},
+            "browserFingerPrint": grok_browser_fingerprint(),
         })
         data = None
         for _ in range(8):
@@ -787,7 +868,7 @@ async def get_code_via_direct_browser(email, email_pw, p, pre=None):
         return await get_code_outlook_pw(
             page, email, email_pw,
             sender_hint=GROK_SENDER, subject_hint=GROK_SUBJECT,
-            code_regex=r"\b((?=[A-Z0-9-]*[A-Z])[A-Z0-9]{2,4}-[A-Z0-9]{2,4})\b", max_wait=160, poll=8,
+            code_regex=GROK_CODE_REGEX, max_wait=160, poll=8,
         )
     except Exception as e:
         print(f"  [mail] direct browser error: {e}")
@@ -880,7 +961,7 @@ async def register_one(index, total, p, node):
     try:
         # BitBrowser 走 Clash 代理。
         pid = create_browser_with_retry(
-            bb, name,
+            bb, name, browserFingerPrint=grok_browser_fingerprint()
         )
         if not pid:
             print("  create browser failed")
@@ -889,7 +970,7 @@ async def register_one(index, total, p, node):
         bb._post("/browser/update", {
             "id": pid, "name": name,
             **clash_browser_proxy_fields(),
-            "browserFingerPrint": {"coreVersion": "130"},
+            "browserFingerPrint": grok_browser_fingerprint(),
         })
         data = None
         for _ in range(8):
@@ -905,12 +986,15 @@ async def register_one(index, total, p, node):
         browser = await p.chromium.connect_over_cdp(data["ws"])
         ctx = browser.contexts[0]
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-        await inject_grok_stealth(ctx, page)
-        # 在任何页面脚本前 hook turnstile.render，截获 callback/sitekey（供打码回灌用）
-        try:
-            await ctx.add_init_script(TURNSTILE_HOOK_JS)
-        except Exception as e:
-            print(f"  turnstile hook inject failed: {str(e)[:60]}")
+        print(f"  BitBrowser native fingerprint (core={GROK_BROWSER_CORE_VERSION})")
+        email_rpc_statuses = []
+
+        def _capture_email_rpc(response):
+            if "AuthManagement/CreateEmailValidationCode" in response.url:
+                email_rpc_statuses.append(response.status)
+                print(f"  [email-rpc] CreateEmailValidationCode HTTP {response.status}")
+
+        page.on("response", _capture_email_rpc)
 
         # Step 1: 直接打开 xAI 注册页。经 grok.com 的 RSC 跨域跳转会产生 CORS/CF 噪音，
         # 且不提供注册所需状态；账号完成后再回 grok.com 落主域 cookie。
@@ -1005,12 +1089,16 @@ async def register_one(index, total, p, node):
                 await ensure_turnstile(page, page.url, passive_s=14)
             code_requested_at = time.time()
             code_ready = False
-            for submit_try in range(3):
+            submit_limit = BROWSER_MAILBOX_ATTEMPTS if temp_mb else 3
+            for submit_try in range(submit_limit):
                 await click_any(page, COOKIE_DISMISS, timeout=1500)
                 submit = page.locator('form button[type="submit"]').first
                 try:
                     if await submit.count() > 0 and await submit.is_visible():
-                        print(f"  [4] submit email attempt {submit_try+1}/3 disabled={await submit.is_disabled()}")
+                        print(
+                            f"  [4] submit email attempt {submit_try+1}/{submit_limit} "
+                            f"disabled={await submit.is_disabled()}"
+                        )
                         await submit.click(timeout=6000)
                     else:
                         await click_any(page, CONTINUE_BTN, timeout=5000)
@@ -1022,6 +1110,22 @@ async def register_one(index, total, p, node):
                     break
                 except Exception:
                     pass
+                if email_rpc_statuses and email_rpc_statuses[-1] == 403:
+                    print("  [4] xAI 发码 RPC 被 Cloudflare 403，停止重复提交")
+                    break
+                if temp_mb and submit_try + 1 < submit_limit:
+                    try:
+                        print("  [4] xAI 未接受该临时邮箱域名，自动更换邮箱")
+                        temp_mb = create_mailbox(provider=TEMP_EMAIL_PROVIDER)
+                        email = temp_mb["email"]
+                        print(f"  [temp-email] replacement: {email}")
+                        if not await react_fill(page, email_sel, email):
+                            print("  [4] replacement mailbox fill failed")
+                            break
+                        code_requested_at = time.time()
+                        continue
+                    except Exception as e:
+                        print(f"  [4] replacement mailbox create failed: {str(e)[:80]}")
                 if await _has_turnstile_widget(page):
                     print("  [4] 仍在邮箱页，重试过墙 + 提交")
                     await ensure_turnstile(page, page.url, passive_s=10)
@@ -1065,7 +1169,7 @@ async def register_one(index, total, p, node):
                 temp_mb["id"], temp_mb["provider"], email=email, token=temp_mb.get("token"),
                 max_wait=150, poll_interval=5,
                 sender_hint=GROK_SENDER, subject_hint=GROK_SUBJECT,
-                code_regex=r"\b((?=[A-Z0-9-]*[A-Z])[A-Z0-9]{2,4}-[A-Z0-9]{2,4})\b",
+                code_regex=GROK_CODE_REGEX,
             )
         elif refresh_token:
             print("  [5] get verification code via Outlook Graph refresh token")
@@ -1076,7 +1180,7 @@ async def register_one(index, total, p, node):
                 client_id,
                 GROK_SENDER,
                 GROK_SUBJECT,
-                r"\b((?=[A-Z0-9-]*[A-Z])[A-Z0-9]{2,4}-[A-Z0-9]{2,4})\b",
+                GROK_CODE_REGEX,
                 160,
                 5,
                 code_requested_at,
@@ -1096,6 +1200,7 @@ async def register_one(index, total, p, node):
 
         if code:
             print(f"  got code: {code}")
+            await arm_turnstile_hook(ctx, page)
             # 精确定位验证码框(name=code)，避免误填到搜索框(text/検索)
             ci = page.locator('input[name="code"]').first
             if await ci.count() == 0:
@@ -1215,7 +1320,12 @@ async def register_one(index, total, p, node):
             has_token = await ensure_turnstile(page, page_url, passive_s=18)
             done = await click_any(page, COMPLETE_BTN, timeout=8000)
             print(f"  [6] complete: btn={done} turnstile={has_token} (attempt {attempt+1}/3)")
-            await asyncio.sleep(6)
+            try:
+                await page.wait_for_url(
+                    lambda url: "/sign-up" not in url, timeout=15000
+                )
+            except Exception:
+                await asyncio.sleep(2)
             cur = page.url
             # 离开 sign-up 页 = 注册推进成功
             if "/sign-up" not in cur:
@@ -1228,11 +1338,13 @@ async def register_one(index, total, p, node):
         check_timeout()
 
         # 回到 grok.com 确保 cookie 落到主域
-        try:
-            await page.goto("https://grok.com/", timeout=45000, wait_until="domcontentloaded")
-            await wait_render(page, max_s=40)
-        except Exception:
-            pass
+        if "grok.com" not in page.url:
+            try:
+                await page.goto("https://grok.com/", timeout=45000, wait_until="domcontentloaded")
+            except Exception:
+                pass
+        else:
+            await asyncio.sleep(2)
         await dump_state(page, "final")
 
         key_val, _ = await save_platform_cookies(
@@ -1240,7 +1352,9 @@ async def register_one(index, total, p, node):
         )
         if key_val:
             try:
-                if not save_and_import_grok(key_val, email, password):
+                if not save_and_import_grok(
+                    key_val, email, password, mark_pool=temp_mb is None
+                ):
                     return None
             except Exception as e:
                 print(f"  [FAIL] 保存/导入 grok token 失败: {e}")
@@ -1292,11 +1406,13 @@ async def main():
                         help="注册后直接导入 SUB2API Grok 渠道")
     parser.add_argument("--sub2api-group", default="",
                         help="SUB2API Grok 分组名(默认取 SUB2API_GROK_GROUP)")
+    parser.add_argument("--mailbox-attempts", type=int, default=6,
+                        help="浏览器发码未进入验证码页时更换临时邮箱的次数")
     args = parser.parse_args()
 
     global REGISTER_TIMEOUT, KEEP_ON_FAIL, FIXED_EMAIL, FIXED_PASSWORD
     global FIXED_REFRESH_TOKEN, FIXED_CLIENT_ID, USE_LATEST_RT
-    global IMPORT_SUB2API, IMPORT_SUB2API_GROUP
+    global IMPORT_SUB2API, IMPORT_SUB2API_GROUP, BROWSER_MAILBOX_ATTEMPTS
     REGISTER_TIMEOUT = args.timeout
     KEEP_ON_FAIL = args.keep_on_fail
     FIXED_EMAIL = args.email
@@ -1306,6 +1422,7 @@ async def main():
     USE_LATEST_RT = args.latest_rt
     IMPORT_SUB2API = args.sub2api
     IMPORT_SUB2API_GROUP = args.sub2api_group
+    BROWSER_MAILBOX_ATTEMPTS = max(1, args.mailbox_attempts)
 
     print("=" * 50)
     print(f"  Grok Auto Register  count={args.count} node={args.node}")

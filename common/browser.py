@@ -142,12 +142,12 @@ async def inject_stealth(context, page):
     print("  stealth injected")
 
 
-def create_browser_with_retry(bb, name, retries=3):
+def create_browser_with_retry(bb, name, retries=3, **browser_options):
     """创建 BitBrowser 窗口，带配额满自动清理 / 网络错误重试"""
     import time
     for attempt in range(retries):
         try:
-            return bb.create_browser(name=name)
+            return bb.create_browser(name=name, **browser_options)
         except Exception as e:
             msg = str(e)
             if any(k in msg.lower() for k in ["最大创建窗口数", "超过", "quota", "limit", "maximum", "exceed"]):

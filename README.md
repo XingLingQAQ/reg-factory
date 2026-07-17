@@ -221,12 +221,14 @@ cp .env.example .env
 | `CLASH_GROUP` | 切换出口的代理组名（默认 `GLOBAL`） | 否 |
 | `FINGERPRINT_BROWSER` | 指纹浏览器 provider：`bitbrowser` / `adspower`（默认 `bitbrowser`） | 否 |
 | `BITBROWSER_API` | 比特浏览器本地 API（默认 `http://127.0.0.1:54345`） | 否 |
+| `GROK_BROWSER_CORE_VERSION` | Grok 浏览器 Chromium 内核（默认 `146`；旧 `130` 会触发 xAI 发码 403） | 否 |
 | `ADSPOWER_API` | AdsPower 本地 API（默认 `http://127.0.0.1:50325`） | 使用 AdsPower 时 |
 | `ADSPOWER_API_KEY` | AdsPower Local API 鉴权 key（未启用鉴权可留空） | 否 |
 | `ADSPOWER_GROUP_ID` | AdsPower 新建 profile 的分组 ID（默认 `0`） | 否 |
 | `SMS_TOKEN` | 接码平台 firefox.fun 的 token | 需手机号时必填 |
 | `HERO_SMS_API_KEY` | 备用接码 hero-sms.com 的 api_key | 否 |
-| `CAPSOLVER_API_KEY` | CapSolver 打码 key（Grok 注册过 Turnstile 用它） | Grok 必填 |
+| `YESCAPTCHA_API_KEY` | YesCaptcha key（Grok Turnstile 首选回退，也可用于 GitHub Arkose） | Grok 与 CapSolver 二选一 |
+| `CAPSOLVER_API_KEY` | CapSolver 打码 key（Grok Turnstile 回退） | Grok 与 YesCaptcha 二选一 |
 | `EZCAPTCHA_API_KEY` | EZ-Captcha 打码 key | 按需 |
 | `OUTLOOK_PROXIES` | Outlook 自注册住宅代理池，`user:pass@host:port`，换行/逗号分隔 | 否 |
 | `MAIL_*` | 备用域名邮箱（一般用不到） | 否 |

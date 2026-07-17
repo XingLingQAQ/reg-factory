@@ -46,6 +46,8 @@ from common.token_upload_state import mark_uploaded
 
 try:
     from config import (
+        YESCAPTCHA_API_KEY,
+        YESCAPTCHA_API_BASE,
         CAPSOLVER_API_KEY,
         EZCAPTCHA_API_KEY,
         EZCAPTCHA_API_BASE,
@@ -56,6 +58,8 @@ try:
         SUB2API_GROK_PROXY_ID,
     )
 except Exception:
+    YESCAPTCHA_API_KEY = ""
+    YESCAPTCHA_API_BASE = "https://api.yescaptcha.com"
     CAPSOLVER_API_KEY = ""
     EZCAPTCHA_API_KEY = ""
     EZCAPTCHA_API_BASE = "https://api.ez-captcha.com"
@@ -81,7 +85,7 @@ GROK_SENDER = ("x.ai", "grok", "noreply", "no-reply")
 GROK_SUBJECT = ("code", "verify", "verification", "grok", "x.ai", "confirm",
                 "確認", "認証", "コード", "验证", "驗證")
 # x.ai 验证码为 XXX-XXX（字母数字含分隔符）；也兜底 6 位连写
-CODE_REGEX = r"\b((?=[A-Z0-9-]*[A-Z])[A-Z0-9]{2,4}-[A-Z0-9]{2,4})\b"
+CODE_REGEX = r"\b((?=[A-Z0-9-]*[A-Z])(?:[A-Z0-9]{2,4}-[A-Z0-9]{2,4}|[A-Z0-9]{6}))\b"
 
 
 def _rand_password():
@@ -98,7 +102,29 @@ def _rand_name():
 
 # ============================================================ Turnstile 打码（同步）
 def solve_turnstile(sitekey, page_url, action=None, cdata=None, max_wait=140):
-    """CapSolver 优先解 Turnstile；失败回退 EZ-Captcha。返回 token 或 None。同步。"""
+    """按 YesCaptcha、CapSolver、EZ-Captcha 顺序解 Turnstile。"""
+    if YESCAPTCHA_API_KEY:
+        try:
+            from xconsole_client.solver import YesCaptchaSolver
+
+            solver = YesCaptchaSolver(
+                YESCAPTCHA_API_KEY,
+                endpoint=YESCAPTCHA_API_BASE,
+                timeout=max_wait,
+                poll_interval=3,
+                debug=False,
+            )
+            token = solver.solve_turnstile(
+                website_url=page_url,
+                website_key=sitekey,
+                premium=True,
+                fallback_non_premium=True,
+            )
+            if token:
+                print(f"  [yescaptcha] solved (token len={len(token)})")
+                return token
+        except Exception as e:
+            print(f"  [yescaptcha] error: {str(e)[:80]}")
     if CAPSOLVER_API_KEY:
         try:
             task = {"type": "AntiTurnstileTaskProxyLess", "websiteURL": page_url, "websiteKey": sitekey}

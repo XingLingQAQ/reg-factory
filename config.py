@@ -140,7 +140,7 @@ CAPSOLVER_API_KEY = _env("CAPSOLVER_API_KEY", "")
 EZCAPTCHA_API_KEY = _env("EZCAPTCHA_API_KEY", "")
 EZCAPTCHA_API_BASE = _env("EZCAPTCHA_API_BASE", "https://api.ez-captcha.com")
 
-# YesCaptcha 打码平台（解 Arkose FunCaptcha，GitHub 注册用）。API 与 CapSolver 兼容。
+# YesCaptcha 打码平台（Grok Turnstile + GitHub Arkose）。API 与 CapSolver 兼容。
 YESCAPTCHA_API_KEY = _env("YESCAPTCHA_API_KEY", "")
 YESCAPTCHA_API_BASE = _env("YESCAPTCHA_API_BASE", "https://api.yescaptcha.com")
 
