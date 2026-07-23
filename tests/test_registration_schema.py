@@ -55,6 +55,9 @@ class RegistrationSchemaTests(unittest.TestCase):
         self.assertEqual(args["--captcha-manual-timeout"]["default"], 0)
 
     def test_webui_exposes_claude_solver_configuration_only(self):
+        script = _script("register_claude")
+        self.assertIn("必须", script["warning"])
+        self.assertIn("视觉 API", script["warning"])
         keys = {
             item["key"]
             for group in ENV_SCHEMA
@@ -71,6 +74,15 @@ class RegistrationSchemaTests(unittest.TestCase):
                 "CLAUDE_BROWSER_CORE_VERSION",
             }.issubset(keys)
         )
+        claude_items = {
+            item["key"]: item
+            for group in ENV_SCHEMA
+            if group["group"] == "Claude 注册与验证"
+            for item in group["items"]
+        }
+        self.assertTrue(claude_items["CLAUDE_VISION_API_BASE"]["required"])
+        self.assertTrue(claude_items["CLAUDE_VISION_API_KEY"]["required"])
+
     def test_claude_graph_reader_receives_client_and_timestamp(self):
         with patch("common.mailbox.get_link_by_token", return_value="https://claude.ai/magic-link#ok") as reader:
             result = register.get_magic_link_by_token(

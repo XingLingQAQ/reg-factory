@@ -55,6 +55,8 @@ body{margin:0;background:var(--bg);color:var(--text);
 .hint{color:var(--dim)}
 .form-title{font-size:18px;font-weight:600;margin:0 0 4px}
 .form-desc{color:var(--dim);margin:0 0 16px;font-size:13px}
+.form-warning{margin:0 0 16px;padding:10px 12px;border:1px solid #d59b32;border-left-width:4px;
+  border-radius:6px;background:#2b2518;color:#f2cf84;font-size:13px;line-height:1.5}
 .field{margin-bottom:14px}
 .field label{display:block;margin-bottom:5px;font-size:13.5px}
 .field .fhelp{color:var(--dim);font-size:12px;margin-top:3px}

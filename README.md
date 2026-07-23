@@ -182,7 +182,7 @@ curl -fsSL "https://raw.githubusercontent.com/tiantianGPU/reg-factory/main/boots
 - **⚙️ 配置(.env)** 页：分组填写所有密钥（密码框遮挡），每类带**连通测试按钮**——
   Clash（验证控制器 + secret）、指纹浏览器、sms-man / firefox.fun 接码平台，一键看通不通。
   指纹浏览器 provider 可在页面里用下拉框切换 `bitbrowser` / `adspower`。
-- **Claude 注册与验证**配置组：集中设置节点探测、Cloudflare 等待、hCaptcha 重试、视觉网关/模型和浏览器内核；单任务页可直接填写与 refresh token 配套的 `client-id`。
+- **Claude 注册与验证**配置组：集中设置节点探测、Cloudflare 等待、hCaptcha 重试、视觉网关/模型和浏览器内核；运行 Claude 注册前必须配置 `CLAUDE_VISION_API_BASE` 和 `CLAUDE_VISION_API_KEY`，否则无法自动通过图形验证。单任务页可直接填写与 refresh token 配套的 `client-id`。
 - 桌面宽屏使用参数/实时日志双栏，任务结束后显示真实的成功、失败或停止状态；移动端保持单栏和抽屉式任务导航。
 - 保存 `.env` 后，后续新任务和面板管理的子服务立即使用新配置，无需重启主服务。
 - 更新代码请使用 `update.bat` / `update.sh`（或上面的一键更新命令）；脚本会拒绝中断运行中的注册任务，并在更新依赖后重启、核对 WebUI 提交版本，避免页面仍使用旧 schema。

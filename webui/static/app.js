@@ -176,6 +176,13 @@ function renderForm(s){
   const h = document.createElement('div');
   h.innerHTML = `<h2 class="form-title">${s.title}</h2><p class="form-desc">${s.desc||''}</p>`;
   p.appendChild(h);
+  if(s.warning){
+    const warning = document.createElement('div');
+    warning.className = 'form-warning';
+    warning.setAttribute('role', 'alert');
+    warning.textContent = s.warning;
+    p.appendChild(warning);
+  }
 
   s.args.forEach(a=>{
     const f = document.createElement('div'); f.className='field';
