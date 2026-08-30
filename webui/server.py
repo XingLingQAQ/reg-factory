@@ -311,26 +311,52 @@ def _http_alive(url, timeout=3, headers=None, verify_tls=True):
 
 
 def _k12_url():
-    return "/"
+    raw = _read_config_val("K12_CONSOLE_URL", "http://127.0.0.1:8806").strip().rstrip("/")
+    try:
+        parsed = urllib.parse.urlparse(raw)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("invalid K12_CONSOLE_URL")
+    except Exception:
+        return "http://127.0.0.1:8806/"
+    return raw + "/"
 
 
 def _k12_is_local(url):
-    return str(url or "").strip() in {"", "/"}
+    try:
+        return urllib.parse.urlparse(url).hostname in {"127.0.0.1", "localhost", "::1"}
+    except Exception:
+        return False
 
 
 def _k12_alive():
-    return True
+    return _http_alive(urllib.parse.urljoin(_k12_url(), "api/health"), timeout=1.5)
 
 
 def _k12_status(message=""):
-    return {
-        "alive": True,
-        "ready": True,
-        "managed": True,
-        "integrated": True,
-        "url": "/",
-        "message": message or "Codex K12 已融合到主 WebUI 工作台",
-    }
+    alive = _k12_alive()
+    node = shutil.which("node")
+    missing = []
+    if not os.path.isfile(os.path.join(K12_DIR, "package.json")):
+        missing.append("codex_k12 子项目")
+    if not node:
+        missing.append("Node.js 20+")
+    if not os.path.isfile(K12_TSX_CLI):
+        missing.append("Node 依赖")
+    if not os.path.isfile(K12_DIST_INDEX):
+        missing.append("生产构建")
+    ready = not missing and _k12_is_local(_k12_url())
+    managed = bool(K12_PROCESS and K12_PROCESS.returncode is None)
+    if alive:
+        detail = "服务在线"
+    elif message:
+        detail = message
+    elif missing:
+        detail = "缺少 " + "、".join(missing) + "，请重新运行 install.bat / install.sh"
+    elif not _k12_is_local(_k12_url()):
+        detail = "远程 K12 地址当前不可达，主面板不会自动启动远程服务"
+    else:
+        detail = "服务已安装但尚未启动"
+    return {"alive": alive, "ready": ready, "managed": managed, "url": _k12_url(), "message": detail}
 
 
 def _plus_health():
@@ -524,12 +550,6 @@ def _update_status():
 
 
 async def _start_k12_service():
-    # Kept as a compatibility endpoint for old clients. K12 is now executed
-    # by the main Plus/Codex task worker and never starts a second service.
-    return _k12_status()
-
-    # Legacy child-service code below is unreachable and retained only to keep
-    # old local installations from failing during an upgrade.
     global K12_PROCESS, K12_LOG_HANDLE
     async with K12_LOCK:
         status = _k12_status()
@@ -1623,22 +1643,6 @@ async def api_chatgpt_plus_import_codex(request: Request):
         or _read_config_val("SUB2API_GROUP", "codex")
         or "codex"
     ).strip()[:120]
-    from common.k12_workspace import normalize_workspace_ids
-
-    workspace_ids = normalize_workspace_ids(
-        (data or {}).get("workspace_ids") or _read_config_val("K12_WORKSPACE_IDS", "")
-    )
-    workspace_route = str(
-        (data or {}).get("workspace_route") or _read_config_val("K12_WORKSPACE_ROUTE", "request")
-    ).strip().lower()
-    raw_run_workspace_join = (data or {}).get("run_workspace_join")
-    if raw_run_workspace_join is None:
-        raw_run_workspace_join = _read_config_val("K12_RUN_WORKSPACE_JOIN", "0")
-    run_workspace_join = str(raw_run_workspace_join).strip().lower() in {"1", "true", "yes", "on"}
-    if workspace_route not in {"request", "accept"}:
-        return JSONResponse({"error": "K12 workspace 操作只能是 request 或 accept"}, status_code=400)
-    if run_workspace_join and not workspace_ids:
-        return JSONResponse({"error": "启用 K12 workspace 操作时必须填写 Workspace ID"}, status_code=400)
 
     data_root = os.path.abspath(os.environ.get("REG_FACTORY_DATA_DIR") or ROOT)
     runtime_dir = os.path.join(data_root, "runtime", "plus_codex")
@@ -1667,9 +1671,6 @@ async def api_chatgpt_plus_import_codex(request: Request):
             "--output-format": output_format,
             "--delete-input": True,
             "--keep-on-fail": bool((data or {}).get("keep_on_fail")),
-            "--workspace-ids": workspace_ids,
-            "--workspace-route": workspace_route,
-            "--run-workspace-join": run_workspace_join,
         }
         if output_path:
             args["--output"] = output_path
@@ -3618,11 +3619,21 @@ async def api_stop_all():
 
 @app.on_event("startup")
 async def startup_local_services():
-    return None
+    global K12_START_TASK
+    auto_start = _read_config_val("K12_AUTO_START", "1").strip().lower() not in {"0", "false", "no", "off"}
+    if auto_start and not _k12_alive():
+        K12_START_TASK = asyncio.create_task(_start_k12_service())
 
 
 @app.on_event("shutdown")
 async def shutdown_local_services():
+    global K12_START_TASK
+    if K12_START_TASK and not K12_START_TASK.done():
+        K12_START_TASK.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await K12_START_TASK
+    K12_START_TASK = None
+    await _stop_k12_service()
     await asyncio.to_thread(_stop_plus_service_sync)
     await asyncio.to_thread(_cleanup_registered_browser_profiles)
 
