@@ -256,6 +256,37 @@ def _check_paid(plan_type: str, args):
     return normalized
 
 
+async def _run_k12_workspace(credentials: dict, result: dict, args) -> None:
+    """Execute the standalone K12 workspace stage after OAuth succeeds."""
+    from k12.workspace import operate_many, workspace_ids
+
+    if not getattr(args, "run_workspace_join", False):
+        return
+    ids = workspace_ids(getattr(args, "workspace_ids", []))
+    if not ids:
+        raise RuntimeError("K12 Workspace ID 未配置")
+    token = str(credentials.get("access_token") or credentials.get("accessToken") or "").strip()
+    if not token:
+        raise RuntimeError("OAuth 凭据缺少 access token，无法执行 K12 workspace 操作")
+    route = str(getattr(args, "workspace_route", "request") or "request").strip().lower()
+    result["stage"] = "workspace"
+    result["workspace_results"] = await asyncio.to_thread(
+        operate_many,
+        token,
+        ids,
+        route,
+        timeout=max(5, int(getattr(args, "workspace_timeout", 30) or 30)),
+        retries=max(0, int(getattr(args, "workspace_retries", 2) or 2)),
+        interval=max(0, float(getattr(args, "workspace_interval", 1.5) or 1.5)),
+    )
+    failed = [item for item in result["workspace_results"] if not item.get("ok")]
+    if failed:
+        raise RuntimeError(
+            "K12 workspace 操作失败: "
+            + "; ".join(f"{item.get('workspace_id', '')[:8]}... HTTP {item.get('status') or 'network'}" for item in failed)
+        )
+
+
 async def _save_and_create(origin, sub2api_token, group_id, credentials, email, result, args):
     if not credentials.get("refresh_token"):
         raise RuntimeError("OAuth 凭据缺少 refresh_token")
@@ -310,6 +341,7 @@ async def import_one(index, total, record, playwright, origin, sub2api_token, gr
             credentials["codex_phone_status"] = result["phone_status"]
             result["plan_type"] = _check_paid(credentials.get("plan_type"), args)
             await _save_and_create(origin, sub2api_token, group_id, credentials, email, result, args)
+            await _run_k12_workspace(credentials, result, args)
         else:
             from register_chatgpt import clash_browser_proxy_fields
 
@@ -372,6 +404,7 @@ async def import_one(index, total, record, playwright, origin, sub2api_token, gr
             credentials["codex_phone_status"] = result["phone_status"]
             result["plan_type"] = _check_paid(credentials.get("plan_type") or result["plan_type"], args)
             await _save_and_create(origin, sub2api_token, group_id, credentials, email, result, args)
+            await _run_k12_workspace(credentials, result, args)
 
             # 邀请好友:Plus/Pro 账号 OAuth 成功后,从池子抽未注册邮箱邀请(触发 banked reset 奖励)
             if getattr(args, "invite_friend", False) and result.get("status") == "success":
@@ -499,6 +532,12 @@ def build_parser():
     parser.add_argument("--invite-timeout", type=int, default=45,
                         help="邀请流程超时秒数")
     parser.add_argument("--results", default="", help="结果 JSONL 路径")
+    parser.add_argument("--workspace-ids", nargs="*", default=[], help="K12 Workspace ID 列表")
+    parser.add_argument("--workspace-route", choices=("request", "accept"), default="request", help="K12 workspace 操作")
+    parser.add_argument("--run-workspace-join", action="store_true", help="OAuth 完成后执行 K12 workspace 操作")
+    parser.add_argument("--workspace-timeout", type=int, default=30)
+    parser.add_argument("--workspace-retries", type=int, default=2)
+    parser.add_argument("--workspace-interval", type=float, default=1.5)
     parser.add_argument("--delete-input", action="store_true")
     parser.add_argument("--keep-on-fail", action="store_true")
     parser.add_argument("--allow-non-paid", dest="require_paid", action="store_false")
