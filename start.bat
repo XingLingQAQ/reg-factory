@@ -11,7 +11,7 @@ if "%REG_FACTORY_PORT%"=="" set REG_FACTORY_PORT=8799
 
 echo Starting reg-factory control panel ...
 echo Panel: http://127.0.0.1:%REG_FACTORY_PORT%  (browser opens automatically)
-echo Codex K12: managed by the panel at http://127.0.0.1:8806
+echo Codex K12: integrated into the main panel
 echo Close this window to stop the server.
 echo.
 

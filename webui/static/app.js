@@ -5,8 +5,6 @@ let curRun = null;     // 当前运行 run_id
 let curSrc = null;     // 当前选中脚本
 let evtSrc = null;     // EventSource
 let smsTimer = null;   // 接码助手倒计时刷新
-let k12Url = 'http://127.0.0.1:8806/';
-let k12Starting = false;
 let plusRun = null;
 let plusEventSource = null;
 let plusAfterImport = null;
@@ -119,9 +117,7 @@ async function pollStatus(){
     const modeLabels = {clash_auto:'Clash 自动', clash_fixed:'Clash 固定', residential:'住宅代理', direct:'直连'};
     $('#network-label').textContent = modeLabels[s.proxy_mode] || '网络出口';
     $('#dot-k12').classList.remove('pending');
-    $('#dot-k12').classList.toggle('on', !!s.k12);
-    $('#k12-nav-state').textContent = s.k12 ? '在线' : '离线';
-    $('#k12-nav-state').classList.toggle('on', !!s.k12);
+    $('#dot-k12').classList.toggle('on', true);
     $('#dot-plus').classList.remove('pending');
     $('#dot-plus').classList.toggle('on', !!s.chatgpt_plus);
     $('#plus-nav-state').textContent = s.chatgpt_plus ? '在线' : '离线';
@@ -133,7 +129,7 @@ async function pollStatus(){
     }
     renderUpdateState(s.update || {}, s.version || '');
     $('#node').textContent = '出口 ' + (s.node || '--');
-    const online = [s.bitbrowser, networkOnline, s.k12, s.chatgpt_plus].filter(Boolean).length;
+    const online = [s.bitbrowser, networkOnline, true, s.chatgpt_plus].filter(Boolean).length;
     $('#health-dot').classList.remove('pending', 'on', 'partial');
     if(online === 4) $('#health-dot').classList.add('on');
     else if(online) $('#health-dot').classList.add('partial');
@@ -173,14 +169,12 @@ $('#btn-update').onclick = startUpdate;
 // ---------------------------------------------------------------- 视图切换
 async function showView(v){
   setNavOpen(false);
-  document.body.classList.toggle('k12-active', v==='k12');
   $('#view-run').style.display  = v==='run' ? '' : 'none';
   $('#view-env').style.display  = v==='env' ? 'block' : 'none';
   $('#view-assets').style.display = v==='assets' ? 'block' : 'none';
   $('#view-network').style.display = v==='network' ? 'block' : 'none';
   $('#view-embed').style.display = v==='embed' ? 'block' : 'none';
   $('#view-mailpool').style.display = v==='mailpool' ? 'block' : 'none';
-  $('#view-k12').style.display = v==='k12' ? 'block' : 'none';
   $('#view-plus').style.display = v==='plus' ? 'flex' : 'none';
   $$('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
   if(v!=='run' && v!=='embed') $$('.scriptbtn').forEach(b=>b.classList.remove('active'));
@@ -190,7 +184,6 @@ async function showView(v){
     assets:loadAssetPanel,
     network:loadProxyPanel,
     mailpool:loadMailpool,
-    k12:openK12Channel,
     plus:loadPlusPanel,
   };
   const loader = loaders[v];
@@ -805,59 +798,6 @@ $$('[data-scan-status]').forEach(button=>button.onclick=()=>{
 $('#btn-scan-prev').onclick = ()=>{ assetScanPage -= 1; renderAssetScanTable(); };
 $('#btn-scan-next').onclick = ()=>{ assetScanPage += 1; renderAssetScanTable(); };
 
-// ---------------------------------------------------------------- Codex K12 集成通道
-function renderK12Status(status){
-  const alive = !!status.alive;
-  k12Url = status.url || k12Url;
-  $('#k12-open').href = k12Url;
-  $('#dot-k12').classList.toggle('on', alive);
-  $('#k12-nav-state').textContent = alive ? '在线' : (status.ready ? '可启动' : '未安装');
-  $('#k12-nav-state').classList.toggle('on', alive);
-  $('#k12-channel-status').textContent = alive ? '服务在线' : (status.message || '服务离线');
-  $('#k12-channel-status').classList.toggle('on', alive);
-  $('#k12-offline').style.display = alive ? 'none' : 'flex';
-  $('#k12-offline-detail').textContent = status.message || 'Codex K12 服务未启动';
-  $('#btn-k12-start').disabled = k12Starting || !status.ready;
-  $('#btn-k12-start').textContent = k12Starting ? '启动中…' : '启动服务';
-  if(alive && $('#k12-frame').src !== k12Url){
-    $('#k12-frame').src = k12Url;
-  }
-}
-
-async function fetchK12Status(){
-  try{
-    const status = await (await fetch('/api/k12/status')).json();
-    renderK12Status(status);
-    return status;
-  }catch(e){
-    const status = {alive:false, ready:false, url:k12Url, message:'主面板无法读取 K12 服务状态'};
-    renderK12Status(status);
-    return status;
-  }
-}
-
-async function startK12Service(){
-  if(k12Starting) return;
-  k12Starting = true;
-  renderK12Status({alive:false, ready:true, url:k12Url, message:'正在启动 Codex K12 服务'});
-  try{
-    const result = await (await fetch('/api/k12/start',{method:'POST'})).json();
-    renderK12Status(result);
-  }catch(e){
-    renderK12Status({alive:false, ready:false, url:k12Url, message:'启动请求失败: '+e});
-  }finally{
-    k12Starting = false;
-  }
-}
-
-async function openK12Channel(){
-  const status = await fetchK12Status();
-  if(!status.alive && status.ready) await startK12Service();
-}
-
-$('#btn-k12-start').onclick = startK12Service;
-$('#btn-k12-retry').onclick = openK12Channel;
-
 // ---------------------------------------------------------------- GoPay registration, account pool and Midtrans payment
 
 async function gopayApi(path, options={}){
@@ -1266,6 +1206,14 @@ function renderCustomSmsSummary(pool, summaryId='custom-sms-summary'){
 
 async function loadPlusPanel(){
   const [status] = await Promise.all([loadPlusImportStatus(), loadPlusProtocolStatus()]);
+  try{
+    const env = await readJsonResponse(await fetch('/api/env', {cache:'no-store'}));
+    const values = {};
+    (env.groups || []).forEach(group=>(group.items || []).forEach(item=>{ values[item.key] = item.value || ''; }));
+    if(!$('#k12-workspace-ids').value.trim()) $('#k12-workspace-ids').value = String(values.K12_WORKSPACE_IDS || '').replace(/,/g, '\n');
+    if(values.K12_WORKSPACE_ROUTE && $('#k12-workspace-route')) $('#k12-workspace-route').value = values.K12_WORKSPACE_ROUTE;
+    if(values.K12_RUN_WORKSPACE_JOIN && $('#k12-run-workspace')) $('#k12-run-workspace').checked = ['1','true','yes','on'].includes(String(values.K12_RUN_WORKSPACE_JOIN).toLowerCase());
+  }catch(_error){}
   return status;
 }
 
@@ -1622,6 +1570,9 @@ async function startPlusCodexImport(){
         skip_phone:$('#plus-skip-phone').checked,
         no_import:$('#plus-no-import').checked,
         output_format:$('#plus-output-format').value,
+        workspace_ids:$('#k12-workspace-ids').value.split(/[,\n]+/).map(value=>value.trim()).filter(Boolean),
+        workspace_route:$('#k12-workspace-route').value,
+        run_workspace_join:$('#k12-run-workspace').checked,
       }),
     });
     const data = await readJsonResponse(response);

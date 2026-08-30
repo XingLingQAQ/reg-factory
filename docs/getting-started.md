@@ -39,7 +39,7 @@ macOS / Linux：
 ./start.sh
 ```
 
-源码方式需要 Python 3.10+。只有 Codex K12 额外需要 Node.js 20+。
+源码方式需要 Python 3.10+；Codex / K12 与主 WebUI 共用同一服务，不需要额外端口或 Node.js。
 
 ## 2. 认识主界面
 

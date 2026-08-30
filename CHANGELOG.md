@@ -1,5 +1,17 @@
 ﻿# 更新日志
 
+## 2026-08-31 - 2.1.0
+
+**Codex K12 完全融合**
+- K12 workspace 操作迁移到主 Python Codex/Plus 任务链，复用主 WebUI、任务日志、邮箱池、OAuth、Sub2API 和 runtime 数据目录。
+- 主面板改为单一 `Codex / K12` 工作台，移除 K12 iframe、8806 独立端口、Node 子服务自动启动和独立启动脚本。
+- 新增 Workspace ID、request/accept 操作和执行开关，可在 WebUI 或 `.env` 中统一配置。
+- K12 workspace 请求支持重试、间隔和脱敏结果记录；失败会正确标记为失败任务，不会伪报成功。
+
+**验证**
+- Python 全量测试：641 passed。
+- WebUI JavaScript 语法检查通过。
+
 ## 2026-08-28 - 2.0.8
 
 **GoPay 钱包支付**

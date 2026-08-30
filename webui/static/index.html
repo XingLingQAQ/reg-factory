@@ -43,8 +43,7 @@
       <button class="navbtn" data-view="assets"><span class="nav-icon" aria-hidden="true">API</span><span>资产 API</span></button>
       <button class="navbtn" data-view="network" data-guide="network-entry"><span class="nav-icon" aria-hidden="true">IP</span><span>网络出口</span></button>
       <button class="navbtn" data-view="env" data-guide="env-entry"><span class="nav-icon" aria-hidden="true">CFG</span><span>环境配置</span></button>
-      <button class="navbtn navbtn-k12" data-view="k12"><span class="nav-icon" aria-hidden="true">K</span><span>Codex K12</span><span id="k12-nav-state" class="nav-state">检测中</span></button>
-      <button class="navbtn" data-view="plus"><span class="nav-icon" aria-hidden="true">P</span><span>Plus 导入</span><span id="plus-nav-state" class="nav-state">检测中</span></button>
+      <button class="navbtn" data-view="plus"><span class="nav-icon" aria-hidden="true">K</span><span>Codex / K12</span><span id="plus-nav-state" class="nav-state">检测中</span></button>
     </div>
     <div class="sidebar-footer">
       <div class="service-list" aria-label="服务状态">
@@ -110,30 +109,6 @@
       </div>
     </section>
 
-    <!-- Codex K12 集成通道 -->
-    <section id="view-k12" style="display:none">
-      <div class="k12-channel">
-        <div class="k12-channel-bar">
-          <div>
-            <strong>Codex K12</strong>
-            <span id="k12-channel-status" class="k12-channel-status">正在检测服务</span>
-          </div>
-          <div class="k12-channel-actions">
-            <button id="btn-k12-retry" class="btn-k12-secondary" type="button">重新连接</button>
-            <a id="k12-open" href="http://127.0.0.1:8806/" target="_blank" rel="noopener" class="embed-open">↗ 新标签打开</a>
-          </div>
-        </div>
-        <div class="k12-frame-stage">
-          <iframe id="k12-frame" class="k12-frame" src="about:blank" title="Codex K12 控制台"></iframe>
-          <div id="k12-offline" class="k12-offline">
-            <strong>Codex K12 服务未就绪</strong>
-            <span id="k12-offline-detail">正在检查 Node.js、依赖和生产构建。</span>
-            <button id="btn-k12-start" class="btn-run" type="button">启动服务</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- Existing ChatGPT Plus accounts -> Codex OAuth -> SUB2API -->
     <section id="view-plus" style="display:none">
       <div class="plus-import-panel">
@@ -179,6 +154,14 @@
               </div>
               <div id="plus-protocol-note" class="plus-protocol-note">只处理命中免费 Plus 优惠的已授权账号；执行前会实时复检资格。</div>
             </div>
+            <details class="custom-sms-import k12-workspace-config" open>
+              <summary>K12 Workspace <span>主任务内执行，不再启动独立服务</span></summary>
+              <div class="plus-controls">
+                <label class="plus-field plus-field-wide"><span>Workspace ID（每行一个）</span><textarea id="k12-workspace-ids" spellcheck="false" autocomplete="off" placeholder="workspace-id-1&#10;workspace-id-2"></textarea></label>
+                <label class="plus-field"><span>操作</span><select id="k12-workspace-route"><option value="request">Request access</option><option value="accept">Accept invite</option></select></label>
+                <label class="plus-toggle"><input id="k12-run-workspace" type="checkbox"><span>OAuth 后执行 Workspace 操作</span></label>
+              </div>
+            </details>
             <label class="plus-field plus-field-wide">
               <span>Plus 邮箱 / Cookie / OAuth Token（每行一个）</span>
               <textarea id="plus-account-input" spellcheck="false" autocomplete="off"

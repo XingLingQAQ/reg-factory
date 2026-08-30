@@ -469,7 +469,7 @@ button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,s
 .network-message.bad{color:var(--red)}
 
 /* Embedded tools */
-#view-embed,#view-k12{height:100%}
+#view-embed{height:100%}
 #view-plus{height:100%;min-height:0;display:flex;flex-direction:column;gap:12px}
 .k12-channel,.embed-frame-box{
   height:100%;min-width:0;display:flex;flex-direction:column;overflow:hidden;
@@ -487,8 +487,6 @@ button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,s
   min-height:30px;padding:5px 9px;border:1px solid var(--line);border-radius:6px;
   color:var(--text);background:var(--surface-raised);font-size:11px;cursor:pointer
 }
-.k12-frame-stage{position:relative;flex:1;min-height:480px;background:#f4f6f8}
-.k12-frame{display:block;width:100%;height:100%;border:0;background:#f4f6f8}
 
 /* Existing Plus account Codex import */
 .plus-import-panel{height:100%;min-height:620px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--surface);overflow:hidden}
@@ -559,11 +557,6 @@ button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,s
 #plus-run-log:empty{display:grid;place-items:center;color:#555b64}
 #plus-run-log:empty::before{content:attr(data-empty)}
 
-.k12-offline{
-  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:10px;padding:24px;background:var(--surface);color:var(--text);text-align:center
-}
-.k12-offline span{max-width:560px;color:var(--muted);font-size:12px;line-height:1.5}
 .embed-wrap{display:flex;gap:12px;height:100%}
 .embed-frame-box{flex:1}
 .embed-bar{font-size:12px;font-weight:650}

@@ -214,6 +214,12 @@ SCRIPTS = [
             {"flag": "--invite-friend", "type": "bool", "default": False,
              "help": "OAuth 成功后邀请新用户(从邮箱池抽未注册号)，仅 Plus/Pro 账号可见入口"},
             {"flag": "--invite-timeout", "type": "int", "default": 45, "help": "邀请流程超时秒数"},
+            {"flag": "--workspace-ids", "type": "multi", "default": [], "help": "K12 Workspace ID 列表"},
+            {"flag": "--workspace-route", "type": "choice", "choices": ["request", "accept"], "default": "request", "help": "K12 workspace 操作"},
+            {"flag": "--run-workspace-join", "type": "bool", "default": False, "help": "OAuth 完成后执行 K12 workspace 操作"},
+            {"flag": "--workspace-timeout", "type": "int", "default": 30, "help": "K12 workspace 请求超时"},
+            {"flag": "--workspace-retries", "type": "int", "default": 2, "help": "K12 workspace 重试次数"},
+            {"flag": "--workspace-interval", "type": "int", "default": 2, "help": "K12 workspace 请求间隔"},
             {"flag": "--output-format", "type": "choice", "choices": ["none", "sub2api"],
              "labels": {"none": "不额外输出", "sub2api": "SUB2API token JSON"},
              "default": "none", "help": "成功凭据的额外输出格式"},
@@ -544,11 +550,13 @@ EMBED_PAGES = []
 # group: 分组标题；key: 变量名；required: 是否必填(运行对应功能时)；help: 说明；
 # secret: True 时前端用密码框；default: 模板默认值(仅展示)。
 ENV_SCHEMA = [
-    {"group": "Codex K12 控制台", "tests": [{"target": "k12", "label": "测试 K12 控制台"}], "items": [
-        {"key": "K12_CONSOLE_URL", "default": "http://127.0.0.1:8806",
-         "help": "主 WebUI 内嵌的 Codex K12 地址。本地地址会由主 WebUI 自动管理进程。"},
-        {"key": "K12_AUTO_START", "type": "choice", "choices": ["1", "0"], "default": "1",
-         "help": "启动主 WebUI 时是否自动拉起本地 Codex K12 服务。"},
+    {"group": "Codex / K12 工作台", "tests": [{"target": "k12", "label": "测试 Codex / K12 工作台"}], "items": [
+        {"key": "K12_WORKSPACE_IDS", "default": "",
+         "help": "K12 Workspace ID，每行一个；已融合到主 Codex 工作台。"},
+        {"key": "K12_WORKSPACE_ROUTE", "type": "choice", "choices": ["request", "accept"], "default": "request",
+         "help": "主任务链的 K12 workspace 操作。"},
+        {"key": "K12_RUN_WORKSPACE_JOIN", "type": "choice", "choices": ["1", "0"], "default": "0",
+         "help": "是否在 OAuth 完成后自动执行 K12 workspace 操作。"},
     ]},
     {"group": "本地资产 API", "items": [
         {"key": "REG_FACTORY_ASSET_API_KEY", "secret": True,
@@ -859,9 +867,10 @@ _SMART_ENV_KEYS = {
 }
 
 _ENV_LABELS = {
-    # Codex K12 / local assets
-    "K12_CONSOLE_URL": "K12 控制台地址",
-    "K12_AUTO_START": "自动启动 K12 控制台",
+    # Codex K12 is part of the main Plus/Codex workbench.
+    "K12_WORKSPACE_IDS": "K12 Workspace ID（工作区）",
+    "K12_WORKSPACE_ROUTE": "K12 Workspace 操作",
+    "K12_RUN_WORKSPACE_JOIN": "执行 K12 Workspace 操作",
     "REG_FACTORY_ASSET_API_KEY": "本地资产 API 密钥",
     "ASSET_SCAN_CHATGPT_PLUS_TRIAL": "扫描 Plus 免费试用资格",
     "ASSET_SCAN_CHATGPT_PLUS_CAMPAIGN": "Plus 试用活动标识",
