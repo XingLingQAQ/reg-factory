@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -204,6 +205,32 @@ class MailCodeProvider:
         return code
 
 
+class ManualOtpFileProvider:
+    """Wait for a six-digit code written by the standalone K12 console."""
+
+    def __init__(self, path: str, max_wait: int = 600):
+        self.path = Path(path).expanduser().resolve()
+        self.max_wait = max(30, int(max_wait))
+
+    async def __call__(self, account_email: str, received_after: float):
+        del account_email, received_after
+        deadline = time.time() + self.max_wait
+        while time.time() < deadline:
+            try:
+                value = self.path.read_text(encoding="utf-8").strip()
+            except OSError:
+                value = ""
+            match = re.search(r"\b(\d{6})\b", value)
+            if match:
+                try:
+                    self.path.write_text("", encoding="utf-8")
+                except OSError:
+                    pass
+                return match.group(1)
+            await asyncio.sleep(1)
+        return None
+
+
 def require_phone_verification(metadata: dict, allow_unverified: bool = False) -> str:
     status = str((metadata or {}).get("codex_phone_status") or "not_verified").strip().lower()
     if status != "verified" and not allow_unverified:
@@ -373,6 +400,9 @@ async def import_one(index, total, record, playwright, origin, sub2api_token, gr
                 )
                 mail_mode = await mail_provider.prepare()
                 print(f"  [mail] {masked} 取码方式: {mail_mode}")
+            if getattr(args, "otp_file", ""):
+                mail_provider = ManualOtpFileProvider(args.otp_file, max_wait=args.timeout)
+                print("  [k12] waiting for manual OTP from the standalone console")
 
             result["stage"] = "oauth"
             metadata = {}
@@ -538,6 +568,7 @@ def build_parser():
     parser.add_argument("--workspace-timeout", type=int, default=30)
     parser.add_argument("--workspace-retries", type=int, default=2)
     parser.add_argument("--workspace-interval", type=float, default=1.5)
+    parser.add_argument("--otp-file", default="", help="手动 OTP 文件，由 K12 控制台写入")
     parser.add_argument("--delete-input", action="store_true")
     parser.add_argument("--keep-on-fail", action="store_true")
     parser.add_argument("--allow-non-paid", dest="require_paid", action="store_false")

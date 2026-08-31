@@ -77,7 +77,7 @@ Windows 便携包包含全新的独立 Codex K12 适配器；K12 使用独立端
 - Python 3.10+
 - 默认使用 [BitBrowser](https://www.bitbrowser.cn/download)，也支持内置 Chromium、自定义 Chrome/Chromium 和 AdsPower
 - [Clash Verge 2.5.2 Windows x64](https://github.com/clash-verge-rev/clash-verge-rev/releases/download/v2.5.2/Clash.Verge_2.5.2_x64-setup.exe)（自动/固定节点模式），或一个住宅代理服务
-- Node.js 20+（仅 Codex K12 控制台需要）
+- Node.js 20+（仅 Gmail Android 模块或源码前端开发按需需要）
 
 Windows：
 

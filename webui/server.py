@@ -595,7 +595,7 @@ async def _start_k12_service():
         if code is not None and K12_LOG_HANDLE:
             K12_LOG_HANDLE.close()
             K12_LOG_HANDLE = None
-        return _k12_status(f"服务未能就绪" + (f"（退出码 {code}）" if code is not None else "，请查看 codex_k12/server.log"))
+        return _k12_status(f"服务未能就绪" + (f"（退出码 {code}）" if code is not None else "，请查看 runtime/k12.log"))
 
 
 async def _stop_k12_service():
